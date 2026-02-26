@@ -1,0 +1,101 @@
+{
+  "format_version": "1.0",
+  "terraform_version": "1.7.5",
+  "resource_changes": [
+    {
+      "address": "module.network.aws_security_group_rule.db_ingress",
+      "module_address": "module.network",
+      "mode": "managed",
+      "type": "aws_security_group_rule",
+      "name": "db_ingress",
+      "provider_name": "registry.terraform.io/hashicorp/aws",
+      "change": {
+        "actions": ["update"],
+        "before": {
+          "type": "ingress",
+          "from_port": 5432,
+          "to_port": 5432,
+          "protocol": "tcp",
+          "cidr_blocks": ["10.0.0.0/16"]
+        },
+        "after": {
+          "type": "ingress",
+          "from_port": 5432,
+          "to_port": 5432,
+          "protocol": "tcp",
+          "cidr_blocks": ["0.0.0.0/0"]
+        }
+      }
+    },
+    {
+      "address": "module.database.aws_db_instance.orders",
+      "module_address": "module.database",
+      "mode": "managed",
+      "type": "aws_db_instance",
+      "name": "orders",
+      "provider_name": "registry.terraform.io/hashicorp/aws",
+      "change": {
+        "actions": ["update"],
+        "before": {
+          "instance_class": "db.t3.medium",
+          "allocated_storage": 100,
+          "engine": "postgres"
+        },
+        "after": {
+          "instance_class": "db.m6i.xlarge",
+          "allocated_storage": 200,
+          "engine": "postgres"
+        }
+      }
+    },
+    {
+      "address": "module.identity.aws_iam_policy.deployer",
+      "module_address": "module.identity",
+      "mode": "managed",
+      "type": "aws_iam_policy",
+      "name": "deployer",
+      "provider_name": "registry.terraform.io/hashicorp/aws",
+      "change": {
+        "actions": ["update"],
+        "before": {
+          "policy": "{\"Version\":\"2012-10-17\",\"Statement\":[{\"Action\":[\"ecs:UpdateService\"],\"Resource\":\"arn:aws:ecs:::service/api\",\"Effect\":\"Allow\"}]}"
+        },
+        "after": {
+          "policy": "{\"Version\":\"2012-10-17\",\"Statement\":[{\"Action\":\"*\",\"Resource\":\"*\",\"Effect\":\"Allow\"}]}"
+        }
+      }
+    },
+    {
+      "address": "module.edge.aws_lb.public_api",
+      "module_address": "module.edge",
+      "mode": "managed",
+      "type": "aws_lb",
+      "name": "public_api",
+      "provider_name": "registry.terraform.io/hashicorp/aws",
+      "change": {
+        "actions": ["create"],
+        "before": null,
+        "after": {
+          "name": "public-api",
+          "internal": false,
+          "load_balancer_type": "application"
+        }
+      }
+    },
+    {
+      "address": "module.network.aws_nat_gateway.primary",
+      "module_address": "module.network",
+      "mode": "managed",
+      "type": "aws_nat_gateway",
+      "name": "primary",
+      "provider_name": "registry.terraform.io/hashicorp/aws",
+      "change": {
+        "actions": ["create"],
+        "before": null,
+        "after": {
+          "subnet_id": "subnet-public-a"
+        }
+      }
+    }
+  ]
+}

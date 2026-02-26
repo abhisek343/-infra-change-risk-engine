@@ -1,0 +1,48 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: analytics-worker
+  namespace: staging
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: analytics-worker
+  template:
+    metadata:
+      labels:
+        app: analytics-worker
+    spec:
+      containers:
+        - name: analytics-worker
+          image: ghcr.io/acme/analytics-worker:v1.8.2
+          ports:
+            - containerPort: 8080
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 8080
+          livenessProbe:
+            httpGet:
+              path: /live
+              port: 8080
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "250m"
+              memory: "256Mi"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: analytics-worker
+  namespace: staging
+spec:
+  selector:
+    app: analytics-worker
+  ports:
+    - port: 80
+      targetPort: 8080
+  type: ClusterIP

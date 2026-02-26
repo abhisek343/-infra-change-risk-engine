@@ -1,0 +1,53 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: payments-api
+  namespace: prod
+spec:
+  replicas: 6
+  selector:
+    matchLabels:
+      app: payments-api
+  template:
+    metadata:
+      labels:
+        app: payments-api
+    spec:
+      containers:
+        - name: payments-api
+          image: ghcr.io/acme/payments-api:latest
+          ports:
+            - containerPort: 8080
+          securityContext:
+            privileged: true
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: payments-api
+  namespace: prod
+spec:
+  selector:
+    app: payments-api
+  ports:
+    - port: 80
+      targetPort: 8080
+  type: LoadBalancer
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: payments-api
+  namespace: prod
+spec:
+  rules:
+    - host: payments.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: payments-api
+                port:
+                  number: 80

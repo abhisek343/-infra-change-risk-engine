@@ -1,0 +1,40 @@
+{
+  "format_version": "1.0",
+  "terraform_version": "1.7.5",
+  "resource_changes": [
+    {
+      "address": "module.compute.aws_instance.analytics_worker",
+      "module_address": "module.compute",
+      "mode": "managed",
+      "type": "aws_instance",
+      "name": "analytics_worker",
+      "provider_name": "registry.terraform.io/hashicorp/aws",
+      "change": {
+        "actions": ["update"],
+        "before": {
+          "instance_type": "t3.medium"
+        },
+        "after": {
+          "instance_type": "m6i.large"
+        }
+      }
+    },
+    {
+      "address": "module.network.aws_security_group.app_internal",
+      "module_address": "module.network",
+      "mode": "managed",
+      "type": "aws_security_group",
+      "name": "app_internal",
+      "provider_name": "registry.terraform.io/hashicorp/aws",
+      "change": {
+        "actions": ["update"],
+        "before": {
+          "description": "internal app traffic"
+        },
+        "after": {
+          "description": "internal app traffic with tighter egress"
+        }
+      }
+    }
+  ]
+}
