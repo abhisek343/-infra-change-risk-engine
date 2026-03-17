@@ -118,3 +118,123 @@ def list_jobs(db: Session = Depends(get_db)) -> list[JobResponse]:
     return [_job_response(job) for job in jobs]
 
 
+@router.post("/jobs", response_model=JobResponse)
+def create_job(payload: CreateJobRequest, db: Session = Depends(get_db)) -> JobResponse:
+    if not payload.terraform_plan and not payload.kubernetes_manifest:
+        raise HTTPException(status_code=400, detail="At least one artifact payload is required.")
+
+    job = AnalysisJob(
+        name=payload.name,
+        environment=payload.environment,
+        status="pending",
+        terraform_plan=payload.terraform_plan,
+        kubernetes_manifest=payload.kubernetes_manifest,
+    )
+    db.add(job)
+    db.commit()
+    db.refresh(job)
+    return _job_response(job)
+
+
+@router.post("/jobs/{job_id}/run", response_model=JobResponse)
+def queue_job(job_id: str, db: Session = Depends(get_db)) -> JobResponse:
+    job = db.get(AnalysisJob, job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found.")
+    if job.status == "running":
+        raise HTTPException(status_code=409, detail="Job is already running.")
+    job.status = "pending"
+    job.error_text = None
+    job.started_at = None
+    job.completed_at = None
+    job.updated_at = datetime.now(UTC)
+    db.commit()
+    db.refresh(job)
+    return _job_response(job)
+
+
+@router.get("/jobs/{job_id}", response_model=JobResponse)
+def get_job(job_id: str, db: Session = Depends(get_db)) -> JobResponse:
+    job = db.scalars(
+        select(AnalysisJob).options(selectinload(AnalysisJob.approvals)).where(AnalysisJob.id == job_id)
+    ).first()
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found.")
+    return _job_response(job)
+
+
+@router.post("/jobs/{job_id}/approvals", response_model=JobResponse)
+def add_approval(job_id: str, payload: ApprovalRequest, db: Session = Depends(get_db)) -> JobResponse:
+    job = db.scalars(
+        select(AnalysisJob).options(selectinload(AnalysisJob.approvals)).where(AnalysisJob.id == job_id)
+    ).first()
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found.")
+    approval = ApprovalDecision(
+        job_id=job.id,
+        reviewer=payload.reviewer,
+        decision=payload.decision,
+        note=payload.note,
+    )
+    db.add(approval)
+    db.commit()
+    refreshed = db.scalars(
+        select(AnalysisJob).options(selectinload(AnalysisJob.approvals)).where(AnalysisJob.id == job_id)
+    ).first()
+    if not refreshed:
+        raise HTTPException(status_code=404, detail="Job not found after approval.")
+    return _job_response(refreshed)
+
+
+@router.get("/jobs/{job_id}/export.md", response_class=PlainTextResponse)
+def export_job_markdown(job_id: str, db: Session = Depends(get_db)) -> PlainTextResponse:
+    job = db.scalars(
+        select(AnalysisJob).options(selectinload(AnalysisJob.approvals)).where(AnalysisJob.id == job_id)
+    ).first()
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found.")
+    if not job.report_json:
+        raise HTTPException(status_code=409, detail="Report not available yet.")
+    report = json.loads(job.report_json)
+    approvals = [
+        {"reviewer": approval.reviewer, "decision": approval.decision, "note": approval.note}
+        for approval in job.approvals
+    ]
+    return PlainTextResponse(render_markdown_report(job.name, job.environment, report, approvals))
+
+
+@router.post("/jobs/{job_id}/fixes", response_model=list[FixPatch])
+def generate_job_fixes(job_id: str, db: Session = Depends(get_db)) -> list[FixPatch]:
+    """Trigger (or re-trigger) LLM fix-generation for all violations in a completed job."""
+    from app.agents.fix_agent import generate_fixes
+
+    job = db.scalars(
+        select(AnalysisJob).options(selectinload(AnalysisJob.approvals)).where(AnalysisJob.id == job_id)
+    ).first()
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found.")
+    if job.status != "completed":
+        raise HTTPException(status_code=409, detail="Job must be completed before generating fixes.")
+    if not job.report_json:
+        raise HTTPException(status_code=409, detail="Report not available.")
+
+    report = json.loads(job.report_json)
+    violations = report.get("violations", [])
+    patches = generate_fixes(violations, job.terraform_plan, job.kubernetes_manifest)
+
+    job.fix_patches_json = json.dumps(patches)
+    job.updated_at = datetime.now(UTC)
+    db.commit()
+
+    return [FixPatch(**p) for p in patches]
+
+
+@router.get("/jobs/{job_id}/fixes", response_model=list[FixPatch])
+def get_job_fixes(job_id: str, db: Session = Depends(get_db)) -> list[FixPatch]:
+    """Return already-generated fix patches for a job."""
+    job = db.get(AnalysisJob, job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found.")
+    if not job.fix_patches_json:
+        return []
+    return [FixPatch(**p) for p in json.loads(job.fix_patches_json)]
