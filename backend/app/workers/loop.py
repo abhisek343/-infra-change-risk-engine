@@ -36,4 +36,29 @@ def process_once() -> bool:
             violations = report.get("violations", [])
             if violations:
                 try:
-\nprint('Starting worker loop debug')\n
+                    from app.agents.fix_agent import generate_fixes
+                    patches = generate_fixes(violations, job.terraform_plan, job.kubernetes_manifest)
+                    job.fix_patches_json = json.dumps(patches)
+                except Exception as fix_exc:  # non-fatal — analysis result is still valid
+                    print(f"Fix generation skipped for job {job.id}: {fix_exc}")
+
+        except Exception as exc:  # surfaced in job status
+            job.status = "failed"
+            job.error_text = str(exc)
+            job.completed_at = datetime.now(UTC)
+            job.updated_at = datetime.now(UTC)
+        db.commit()
+        return True
+
+
+def main() -> None:
+    Base.metadata.create_all(bind=engine)
+    print("Infra Change Risk Engine worker started. Polling for jobs...")
+    while True:
+        processed = process_once()
+        if not processed:
+            time.sleep(WORKER_POLL_INTERVAL_SECONDS)
+
+
+if __name__ == "__main__":
+    main()
