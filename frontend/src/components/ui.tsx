@@ -43,3 +43,48 @@ export function statusClass(status: string): string {
       return "bg-cyan-500/15 text-cyan-100 ring-1 ring-cyan-400/30";
     default:
       return "bg-white/10 text-white/70 ring-1 ring-white/10";
+  }
+}
+
+export function SummaryCard({
+  label,
+  value,
+  helper,
+}: {
+  label: string;
+  value: string;
+  helper?: string;
+}) {
+  return (
+    <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+      <p className="text-xs uppercase tracking-[0.2em] text-white/50">{label}</p>
+      <p className="mt-2 text-2xl font-semibold text-white">{value}</p>
+      {helper ? <p className="mt-1 text-sm text-white/60">{helper}</p> : null}
+    </div>
+  );
+}
+
+export function SectionCard({
+  title,
+  subtitle,
+  children,
+  action,
+}: {
+  title: string;
+  subtitle?: string;
+  children: ReactNode;
+  action?: ReactNode;
+}) {
+  return (
+    <section className="rounded-3xl border border-white/10 bg-white/5 p-6">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 className="text-xl font-semibold text-white">{title}</h2>
+          {subtitle ? <p className="mt-1 text-sm text-white/60">{subtitle}</p> : null}
+        </div>
+        {action}
+      </div>
+      <div className="mt-5">{children}</div>
+    </section>
+  );
+}
